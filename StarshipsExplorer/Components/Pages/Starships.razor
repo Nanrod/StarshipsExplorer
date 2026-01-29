@@ -1,0 +1,104 @@
+@page "/starships"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using StarshipsExplorer.App.Starships
+@inject StarshipsService StarshipsSvc
+
+<PageTitle>Starships</PageTitle>
+
+<h1>Starships</h1>
+
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="alert alert-danger" role="alert">@Error</div>
+}
+else if (IsLoading)
+{
+    <p>Loading starships…</p>
+}
+else
+{
+    <div class="mb-3">
+        <label class="form-label" for="manufacturer">Manufacturer</label>
+        <select class="form-select" id="manufacturer" @bind="SelectedManufacturer">
+            <option value="">(All manufacturers)</option>
+            @foreach (var m in Manufacturers)
+            {
+                <option value="@m">@m</option>
+            }
+        </select>
+    </div>
+
+    <p class="text-muted">
+        Showing <strong>@FilteredStarships.Count</strong> of <strong>@AllStarships.Count</strong>.
+    </p>
+
+    <table class="table table-striped table-sm">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Model</th>
+                <th>Manufacturer</th>
+                <th>Class</th>
+                <th>Crew</th>
+                <th>Passengers</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in FilteredStarships)
+            {
+                <tr>
+                    <td>@s.Name</td>
+                    <td>@s.Model</td>
+                    <td>@s.Manufacturer</td>
+                    <td>@s.StarshipClass</td>
+                    <td>@s.Crew</td>
+                    <td>@s.Passengers</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code
+{
+    private bool IsLoading { get; set; } = true;
+    private string? Error { get; set; }
+
+    private string? SelectedManufacturer { get; set; } = string.Empty;
+
+    private List<StarshipDto> AllStarships { get; set; } = new();
+    private List<string> Manufacturers { get; set; } = new();
+
+    private List<StarshipDto> FilteredStarships =>
+        string.IsNullOrWhiteSpace(SelectedManufacturer)
+            ? AllStarships
+            : AllStarships
+                .Where(s => s.Manufacturers.Any(m => string.Equals(m, SelectedManufacturer, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            AllStarships = (await StarshipsSvc.GetStarshipsAsync(manufacturer: null, CancellationToken.None)).ToList();
+
+            Manufacturers = AllStarships
+                .SelectMany(s => s.Manufacturers)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Manufacturers = (await StarshipsSvc.GetManufacturersAsync(CancellationToken.None)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+}
+
