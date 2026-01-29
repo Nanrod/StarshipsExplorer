@@ -1,0 +1,45 @@
+@page "/login"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+
+@inject NavigationManager Nav
+
+<PageTitle>Login</PageTitle>
+
+<h1>Login</h1>
+
+@if (Error == "1")
+{
+    <p class="text-danger">Invalid username or password.</p>
+}
+
+<form method="post" action="/auth/login">
+    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+
+    <div class="mb-3">
+        <label class="form-label" for="username">Username</label>
+        <input class="form-control" id="username" name="username" autocomplete="username" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">Sign in</button>
+</form>
+
+@code
+{
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    protected override void OnInitialized()
+    {
+        // Default return URL when user browses directly to /login.
+        ReturnUrl ??= "/starships";
+    }
+}
+
