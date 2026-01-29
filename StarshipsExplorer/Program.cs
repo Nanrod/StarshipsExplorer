@@ -15,6 +15,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 
 
 builder.Services.AddHttpClient<SwapiClient>(client =>
@@ -22,6 +23,8 @@ builder.Services.AddHttpClient<SwapiClient>(client =>
     client.BaseAddress = new Uri("https://swapi.tech");
     client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
 });
+
+builder.Services.AddScoped<StarshipsService>();
 
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services
