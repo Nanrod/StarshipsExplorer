@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using StarshipsExplorer.App.Starships;
 using StarshipsExplorer.Components;
 using StarshipsExplorer.Components.Account;
 using StarshipsExplorer.Data;
@@ -17,6 +18,12 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+
+builder.Services.AddHttpClient<SwapiClient>(client =>
+{
+    client.BaseAddress = new Uri("https://swapi.tech");
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+});
 
 builder.Services.AddAuthentication(options =>
     {
