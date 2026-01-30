@@ -141,11 +141,97 @@ public sealed class StarshipsService
             return Array.Empty<string>();
         }
 
-        return manufacturerRaw
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        // Normalize common SWAPI quirks:
+        // - "Incom Corporation, Inc." -> ["Incom Corporation, Inc."] (no standalone "Inc.")
+        // - "Theed ... Corps/Nubia Star Drives" -> ["Theed ... Corps", "Nubia Star Drives"]
+        // - drop "unknown"/"n/a"
+        var tokens = manufacturerRaw
+            .Split([',', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(NormalizeManufacturerToken)
             .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        tokens = MergeCorporateSuffixes(tokens);
+
+        return tokens
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string NormalizeManufacturerToken(string token)
+    {
+        var t = token.Trim();
+        if (string.IsNullOrWhiteSpace(t))
+        {
+            return string.Empty;
+        }
+
+        // Collapse internal whitespace
+        t = string.Join(' ', t.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        // Ignore placeholder values
+        if (string.Equals(t, "unknown", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(t, "n/a", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(t, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        // Fix a couple of known SWAPI inconsistencies/typos that create duplicate manufacturer options.
+        // Keep this list small and obvious (we don't want to "invent" data).
+        if (string.Equals(t, "Cyngus Spaceworks", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Cygnus Spaceworks";
+        }
+
+        return t;
+    }
+
+    private static List<string> MergeCorporateSuffixes(List<string> tokens)
+    {
+        if (tokens.Count <= 1)
+        {
+            return tokens;
+        }
+
+        static bool IsCorporateSuffix(string token)
+        {
+            var t = token.Trim().TrimEnd('.');
+            return string.Equals(t, "Inc", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(t, "Incorporated", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var merged = new List<string>(tokens.Count);
+
+        foreach (var token in tokens)
+        {
+            if (IsCorporateSuffix(token))
+            {
+                // If suffix appears without a preceding company name, ignore it.
+                if (merged.Count == 0)
+                {
+                    continue;
+                }
+
+                var suffix = token.Trim().TrimEnd('.');
+                suffix = string.Equals(suffix, "Inc", StringComparison.OrdinalIgnoreCase) ? "Inc." : "Incorporated";
+
+                // Avoid duplicating suffix if data is weird like "X, Inc., Inc."
+                var prev = merged[^1];
+                if (prev.EndsWith(", Inc.", StringComparison.OrdinalIgnoreCase) ||
+                    prev.EndsWith(", Incorporated", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                merged[^1] = $"{prev}, {suffix}";
+                continue;
+            }
+
+            merged.Add(token);
+        }
+
+        return merged;
     }
 }
 
