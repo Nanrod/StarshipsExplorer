@@ -40,7 +40,7 @@ public sealed class AuthController : Controller
 
         if (string.IsNullOrWhiteSpace(returnUrl) || !Uri.IsWellFormedUriString(returnUrl, UriKind.Relative))
         {
-            return Redirect("/starships");
+            return Redirect("/");
         }
 
         return Redirect(returnUrl);

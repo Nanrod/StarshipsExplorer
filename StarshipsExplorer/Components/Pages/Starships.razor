@@ -1,5 +1,6 @@
 @page "/starships"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 
 @using StarshipsExplorer.App.Starships
 @inject StarshipsService StarshipsSvc
@@ -106,7 +107,6 @@ else
         {
             var progress = new Progress<StarshipsLoadProgress>(p =>
             {
-                // This can be called from background continuations; marshal UI updates safely.
                 _ = InvokeAsync(() =>
                 {
                     LoadedStarships = p.Loaded;
@@ -123,8 +123,6 @@ else
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-
-            // Manufacturers = (await StarshipsSvc.GetManufacturersAsync(CancellationToken.None)).ToList();
         }
         catch (Exception ex)
         {
