@@ -16,7 +16,7 @@ public sealed class StarshipsService
 
     public async Task<IReadOnlyList<StarshipDto>> GetStarshipsAsync(string? manufacturer, CancellationToken ct)
     {
-        var all = await GetAllStarshipsAsync(ct);
+        var all = await GetAllStarshipsAsync(progress: null, ct);
 
         if (string.IsNullOrWhiteSpace(manufacturer))
         {
@@ -28,28 +28,57 @@ public sealed class StarshipsService
             .ToArray();
     }
 
-    //public async Task<IReadOnlyList<string>> GetManufacturersAsync(CancellationToken ct)
-    //{
-    //    var all = await GetAllStarshipsAsync(ct);
-    //    return all
-    //        .SelectMany(s => s.Manufacturers)
-    //        .Distinct(StringComparer.OrdinalIgnoreCase)
-    //        .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-    //        .ToArray();
-    //}
+    public async Task<IReadOnlyList<StarshipDto>> GetStarshipsAsync(
+        string? manufacturer,
+        IProgress<StarshipsLoadProgress>? progress,
+        CancellationToken ct)
+    {
+        var all = await GetAllStarshipsAsync(progress, ct);
 
-    private Task<IReadOnlyList<StarshipDto>> GetAllStarshipsAsync(CancellationToken ct) =>
-        _cache.GetOrCreateAsync(CacheKey, async entry =>
+        if (string.IsNullOrWhiteSpace(manufacturer))
+        {
+            return all;
+        }
+
+        return all
+            .Where(s => s.Manufacturers.Any(m => string.Equals(m, manufacturer.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<StarshipDto>> GetAllStarshipsAsync(
+        IProgress<StarshipsLoadProgress>? progress,
+        CancellationToken ct)
+    {
+        if (_cache.TryGetValue(CacheKey, out IReadOnlyList<StarshipDto>? cached) && cached is not null)
+        {
+            progress?.Report(new StarshipsLoadProgress(Loaded: cached.Count, Total: cached.Count));
+            return cached;
+        }
+
+        var created = await _cache.GetOrCreateAsync(CacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
-            return await FetchAllFromSwapiAsync(ct);
-        })!;
+            return await FetchAllFromSwapiAsync(progress, ct);
+        });
 
-    private async Task<IReadOnlyList<StarshipDto>> FetchAllFromSwapiAsync(CancellationToken ct)
+        if (created is null)
+        {
+            throw new InvalidOperationException("Failed to create starships cache entry.");
+        }
+
+        progress?.Report(new StarshipsLoadProgress(Loaded: created.Count, Total: created.Count));
+        return created;
+    }
+
+    private async Task<IReadOnlyList<StarshipDto>> FetchAllFromSwapiAsync(
+        IProgress<StarshipsLoadProgress>? progress,
+        CancellationToken ct)
     {
         const int pageSize = 20;
 
         var first = await _swapi.GetStarshipsPageAsync(page: 1, limit: pageSize, ct);
+        progress?.Report(new StarshipsLoadProgress(Loaded: 0, Total: first.TotalRecords));
+
         var allListItems = new List<SwapiListItem>(first.TotalRecords);
         allListItems.AddRange(first.Results);
 
@@ -61,6 +90,8 @@ public sealed class StarshipsService
 
         // SWAPI has multiple calls per item. Keep concurrency modest.
         using var semaphore = new SemaphoreSlim(6);
+        var loaded = 0;
+        var total = allListItems.Count;
 
         var tasks = allListItems.Select(async item =>
         {
@@ -73,7 +104,7 @@ public sealed class StarshipsService
                 var manufacturerRaw = (props.Manufacturer ?? string.Empty).Trim();
                 var manufacturers = ParseManufacturers(manufacturerRaw);
 
-                return new StarshipDto(
+                var dto = new StarshipDto(
                     Uid: response.Result.Uid,
                     Name: (props.Name ?? item.Name ?? string.Empty).Trim(),
                     Model: (props.Model ?? string.Empty).Trim(),
@@ -83,6 +114,11 @@ public sealed class StarshipsService
                     Crew: (props.Crew ?? string.Empty).Trim(),
                     Passengers: (props.Passengers ?? string.Empty).Trim()
                 );
+
+                var nowLoaded = System.Threading.Interlocked.Increment(ref loaded);
+                progress?.Report(new StarshipsLoadProgress(Loaded: nowLoaded, Total: total, CurrentItemName: dto.Name));
+
+                return dto;
             }
             finally
             {

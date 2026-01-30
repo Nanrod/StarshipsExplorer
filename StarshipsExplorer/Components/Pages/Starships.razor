@@ -14,7 +14,27 @@
 }
 else if (IsLoading)
 {
-    <p>Loading starships…</p>
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="spinner-border" role="status" aria-label="Loading"></div>
+        <div>
+            <div><strong>Loading starships…</strong></div>
+            @if (!string.IsNullOrWhiteSpace(CurrentLoadingName))
+            {
+                <div class="text-muted small">Latest: @CurrentLoadingName</div>
+            }
+        </div>
+    </div>
+
+    @if (TotalStarships > 0)
+    {
+        <div class="progress" style="height: 22px;">
+            <div class="progress-bar" role="progressbar"
+                 style="width: @ProgressPercent"
+                 aria-valuenow="@LoadedStarships" aria-valuemin="0" aria-valuemax="@TotalStarships">
+                @LoadedStarships / @TotalStarships
+            </div>
+        </div>
+    }
 }
 else
 {
@@ -64,6 +84,9 @@ else
 {
     private bool IsLoading { get; set; } = true;
     private string? Error { get; set; }
+    private int LoadedStarships { get; set; }
+    private int TotalStarships { get; set; }
+    private string? CurrentLoadingName { get; set; }
 
     private string? SelectedManufacturer { get; set; } = string.Empty;
 
@@ -81,7 +104,19 @@ else
     {
         try
         {
-            AllStarships = (await StarshipsSvc.GetStarshipsAsync(manufacturer: null, CancellationToken.None)).ToList();
+            var progress = new Progress<StarshipsLoadProgress>(p =>
+            {
+                // This can be called from background continuations; marshal UI updates safely.
+                _ = InvokeAsync(() =>
+                {
+                    LoadedStarships = p.Loaded;
+                    TotalStarships = p.Total;
+                    CurrentLoadingName = p.CurrentItemName;
+                    StateHasChanged();
+                });
+            });
+
+            AllStarships = (await StarshipsSvc.GetStarshipsAsync(manufacturer: null, progress, CancellationToken.None)).ToList();
 
             Manufacturers = AllStarships
                 .SelectMany(s => s.Manufacturers)
@@ -100,5 +135,8 @@ else
             IsLoading = false;
         }
     }
+
+    private string ProgressPercent =>
+        TotalStarships <= 0 ? "0%" : $"{Math.Min(100, (int)Math.Round(LoadedStarships * 100d / TotalStarships))}%";
 }
 

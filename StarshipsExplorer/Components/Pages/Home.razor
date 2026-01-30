@@ -1,7 +1,18 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Starships Explorer</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Starships Explorer</h1>
 
-Welcome to your new app.
+<p>
+    This is a simple Blazor Server app that requires login before viewing Starships from <a href="https://swapi.tech">swapi.tech</a>.
+</p>
+
+<Microsoft.AspNetCore.Components.Authorization.AuthorizeView>
+    <Authorized>
+        <a class="btn btn-primary" href="/starships">Go to Starships</a>
+    </Authorized>
+    <NotAuthorized>
+        <a class="btn btn-primary" href="/login">Login</a>
+    </NotAuthorized>
+</Microsoft.AspNetCore.Components.Authorization.AuthorizeView>

@@ -5,8 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using StarshipsExplorer.App.Auth;
 using StarshipsExplorer.App.Starships;
 using StarshipsExplorer.Components;
-using StarshipsExplorer.Components.Account;
-using StarshipsExplorer.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
